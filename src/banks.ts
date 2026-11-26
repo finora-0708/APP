@@ -9,14 +9,14 @@ export type Bank = {
   packages: string[];
   keywords: string[];
   methods: string[];
-  waNumber?: string; // bank's OFFICIAL WhatsApp banking number (digits, with country code). Verify on the bank's website before relying on it.
+  whatsapp?: { number: string; display: string; source: string; statement: string };
 };
 const M = ["Notification tracking", "Manual entry", "Account Aggregator (needs provider)"];
 export const BANKS: Bank[] = [
-  { id: "sbi", name: "State Bank of India", short: "SBI", color: "#1b6fb5", packages: ["com.sbi.lotusintouch", "com.sbi.SBIFreedomPlus"], keywords: ["yono", "sbi"], methods: M, waNumber: "919022690226" },
-  { id: "bom", name: "Bank of Maharashtra", short: "BoM", color: "#c8312b", packages: [], keywords: ["maharashtra", "mbanking", "mahabank"], methods: M },
+  { id: "sbi", name: "State Bank of India", short: "SBI", color: "#1b6fb5", packages: ["com.sbi.lotusintouch", "com.sbi.SBIFreedomPlus"], keywords: ["yono", "sbi"], methods: M, whatsapp: { number: "919022690226", display: "+91 90226 90226", source: "https://sbi.bank.in/web/personal-banking/digital/whatsapp-banking", statement: "Get Mini Statement" } },
+  { id: "bom", name: "Bank of Maharashtra", short: "BoM", color: "#c8312b", packages: [], keywords: ["maharashtra", "mbanking", "mahabank"], methods: M, whatsapp: { number: "917066036640", display: "+91 70660 36640", source: "https://bankofmaharashtra.in/writereaddata/documentlibrary/9817482e-1a91-4d43-95c7-6ce3746130a1.pdf", statement: "Get Mini Statement" } },
   { id: "mgb", name: "Maharashtra Gramin Bank", short: "MGB", color: "#2c7a4b", packages: [], keywords: ["gramin", "mgb"], methods: M },
-  { id: "boi", name: "Bank of India", short: "BOI", color: "#1d4f9c", packages: [], keywords: ["bank of india", "boi"], methods: M },
+  { id: "boi", name: "Bank of India", short: "BOI", color: "#1d4f9c", packages: [], keywords: ["bank of india", "boi"], methods: M, whatsapp: { number: "917997987601", display: "+91 79979 87601", source: "https://bankofindia.bank.in/documents/20121/24065467/BOI_AR.pdf", statement: "Mini Statement" } },
   { id: "hdfc", name: "HDFC Bank", short: "HDFC", color: "#1c3f7c", packages: ["com.snapwork.hdfc", "com.enstage.wibmo.hdfc"], keywords: ["hdfc", "payzapp"], methods: M },
   { id: "icici", name: "ICICI Bank", short: "ICICI", color: "#e0662b", packages: ["com.csam.icici.bank.imobile"], keywords: ["imobile", "icici"], methods: M },
   { id: "axis", name: "Axis Bank", short: "Axis", color: "#9d1d4d", packages: ["com.axis.mobile"], keywords: ["axis"], methods: M },

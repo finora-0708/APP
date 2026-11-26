@@ -142,12 +142,42 @@ export function BankSources() {
 }
 
 export function BankChat() {
-  const { s, toast } = useApp();
+  const { s, toast, go } = useApp();
+  const sync = useSync();
+  const [selected, setSelected] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importMessage, setImportMessage] = useState("");
   const [reminderTime, setReminderTime] = useState(() => localStorage.getItem("finora:statement-reminder:" + s.uid) || "");
   const [bot, setBot] = useState(""), [ask, setAsk] = useState(false), [busy, B] = useState(false);
   useEffect(() => { backend<{ botNumber: string }>("/wa/info", {}).then((r) => setBot(r.botNumber)).catch(() => {}); }, []);
-  const banks = s.banks.map((b) => ({ b, def: BANKS.find((x) => x.id === b.id) })).filter((x) => x.def?.waNumber);
-  if (!banks.length) return <p>Select SBI above to set up WhatsApp mini-statement imports.</p>;
+  const banks = BANKS.filter((bank) => bank.whatsapp && s.banks.some((item) => item.id === bank.id));
+  const bank = banks.find((item) => item.id === selected) || banks[0];
+  const whatsapp = bank?.whatsapp;
+  if (!whatsapp) return (
+    <section className="panel">
+      <h2>WhatsApp statements</h2>
+      <p>Select SBI, Bank of Maharashtra or Bank of India to open their official WhatsApp chat and import a mini statement.</p>
+      <Btn kind="ghost" onClick={() => go("/banks")}>Choose banks</Btn>
+    </section>
+  );
+  async function importStatement(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const text = String(new FormData(form).get("statement") || "").trim();
+    if (!text || importing) return;
+    setImporting(true);
+    setImportMessage("");
+    try {
+      const result = await backend<{ lines: number; queued: number }>("/wa/statement", { bank: bank.id, text });
+      form.reset();
+      setImportMessage(result.queued ? `${result.lines} transaction rows read. Open Review to check the import.` : "These rows are already queued for review.");
+      await sync(true).catch(() => setImportMessage("Statement queued. Open Finora again to sync for review."));
+    } catch (error) {
+      setImportMessage(error instanceof Error ? error.message : "Could not import this statement.");
+    } finally {
+      setImporting(false);
+    }
+  }
   async function saveReminder(time: string) {
     try {
       if (!await native.scheduleStatementReminder(time)) {
@@ -168,22 +198,40 @@ export function BankChat() {
     B(false); setAsk(false);
   }
   return (
-    <section className="panel">
-      <div className="sectionhead"><span className="tile mint"><I n="MessageCircle" /></span><Badge>Check balance via bank WhatsApp</Badge></div>
-      <h2>Bank WhatsApp statement</h2>
-      {banks.map(({ def }) => (
-        <div key={def!.id}>
-          <p><small><b>{def!.short}</b> official WhatsApp banking (verify this number on the bank&apos;s website; you may need to register your mobile number with the bank first).</small></p>
-          <ol className="steps">
-            <li>Tap <b>Open {def!.short} WhatsApp</b> and send &quot;Hi&quot; from your registered number.</li>
-            <li>Choose <b>Mini statement</b> in the bank&apos;s menu.</li>
-            <li>When the statement arrives, long-press it → <b>Forward</b> → FINORA bot.</li>
-            <li>Open FINORA: the balance updates, matching payments are skipped and new ones are shown for your review.</li>
-          </ol>
-          <a className="btn" href={"https://wa.me/" + def!.waNumber + "?text=Hi"} target="_blank" rel="noreferrer">Open {def!.short} WhatsApp</a>{" "}
-          {bot && <a className="btn ghost" href={"https://wa.me/" + bot} target="_blank" rel="noreferrer">Open FINORA bot</a>}
+    <section className="panel bank-statement">
+      <div className="sectionhead"><span className="tile mint"><I n="MessageCircle" /></span></div>
+      <h2>WhatsApp statements</h2>
+      <p>Get a mini statement from your bank and bring its transactions into Finora for review.</p>
+      <div className="statement-banks" role="group" aria-label="Statement bank">
+        {banks.map((item) => (
+          <button key={item.id} type="button" aria-pressed={item.id === bank.id} disabled={importing} onClick={() => {
+            setSelected(item.id);
+            setImportMessage("");
+          }}>{logo(item.id)}<span>{item.name}</span></button>
+        ))}
+      </div>
+      <div className="statement-guide">
+        <div className="statement-guide-head">
+          <div><h3>{bank.name}</h3><a href={whatsapp.source} target="_blank" rel="noreferrer">{whatsapp.display} · Official bank source</a></div>
+          <a className="btn" href={"https://wa.me/" + whatsapp.number + "?text=Hi"} target="_blank" rel="noreferrer"><I n="MessageCircle" /> Open WhatsApp</a>
         </div>
-      ))}
+        <ol>
+          <li>Send <b>Hi</b> from your bank-registered WhatsApp number.</li>
+          <li>Choose <b>{whatsapp.statement}</b> in the bank chat.</li>
+          <li>Copy the reply and paste it below, or forward a reply that includes the bank name to the Finora bot.</li>
+        </ol>
+        {bot && <a href={"https://wa.me/" + bot.replace(/\D/g, "")} target="_blank" rel="noreferrer">Open Finora bot</a>}
+      </div>
+      <form className="statement-import" key={bank.id} onSubmit={importStatement}>
+        <Field label={"Paste " + bank.short + " statement text"}>
+          <textarea name="statement" rows={4} maxLength={3000} placeholder="Paste the dated debit and credit rows here" required />
+        </Field>
+        <div className="statement-actions">
+          <Btn type="submit" disabled={importing}>{importing ? "Importing…" : "Import for review"}</Btn>
+          <Btn kind="ghost" onClick={() => go("/review")}>Open review</Btn>
+        </div>
+        {importMessage && <p role="status">{importMessage}</p>}
+      </form>
       {isNative() && (
         <form onSubmit={(e) => {
           e.preventDefault();

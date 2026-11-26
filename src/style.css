@@ -1357,3 +1357,49 @@ html.native aside {
 .profstats{display:flex;gap:10px;width:100%}
 .profstats span{flex:1;background:rgba(255,255,255,.14);border-radius:12px;padding:10px 4px;text-align:center;font-size:12px}
 .profstats b{display:block;font-size:18px}
+
+
+.statement-banks, .statement-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block: 12px;
+}
+
+.statement-banks button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  color: inherit;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 6px 12px 6px 6px;
+  text-align: left;
+}
+
+.statement-banks button[aria-pressed="true"] {
+  border-color: currentColor;
+  font-weight: 700;
+}
+
+.statement-guide {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  margin-block: 14px;
+}
+
+.statement-guide-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.statement-guide h3 { margin: 0 0 4px; }
+.statement-guide ol { padding-inline-start: 20px; }
+.statement-guide li + li { margin-top: 6px; }
+.statement-import { margin-block: 16px; }
+.statement-import textarea { width: 100%; resize: vertical; }
