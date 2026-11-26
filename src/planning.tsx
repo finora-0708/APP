@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useApp, I, Title, Btn, Field, IconBtn, Empty, Badge } from "./ui";
 import { native } from "./native";
 import { rule, Rule, dateKey, summary, uid, cats } from "./model";
-import { services, BACKEND_URL } from "./services";
+import { backend, services, BACKEND_URL } from "./services";
 import { bankById } from "./banks";
 export function Rules({
   bills = false,
@@ -323,18 +323,36 @@ export function Confirm({
 export function Integrations({ waOnly = false }: { waOnly?: boolean }) {
   const { s, set, f, toast, go } = useApp(),
     m = summary(s),
-    ready = BACKEND_URL !== "";
-  function save(e: React.FormEvent<HTMLFormElement>) {
+    ready = BACKEND_URL !== "",
+    [saving, setSaving] = useState(false);
+  async function save(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (saving) return;
     const d = new FormData(e.currentTarget),
       v = (k: string) => String(d.get(k) || "").trim(),
-      phone = v("phone").replace(/[\s-]/g, "");
-    if (phone && !/^\+?[0-9]{10,14}$/.test(phone)) {
-      toast("Enter a valid phone number, e.g. +919876543210");
+      inputPhone = v("phone").replace(/[\s-]/g, "");
+    if (inputPhone && !/^\+?[1-9][0-9]{9,14}$/.test(inputPhone)) {
+      toast("Enter a valid phone number with country code, e.g. +919876543210");
       return;
     }
-    set((p) => ({ ...p, parentName: v("name"), parentPhone: phone, reportOn: d.get("on") === "on", reportTime: v("time") || "21:00" }));
-    toast("Parent Connect saved");
+    const phone = inputPhone ? "+" + inputPhone.replace(/^\+/, "") : "";
+    const name = v("name");
+    const reportOn = !!phone && d.get("on") === "on";
+    const reportTime = v("time") || "21:00";
+    setSaving(true);
+    try {
+      const result = await backend<{ activation: "none" | "already_submitted" | "pending" | "submitted" | "failed" }>("/parent/save", { name, phone, reportOn, reportTime });
+      if (!result.activation) throw new Error("Parent activation is unavailable");
+      set((p) => ({ ...p, parentName: name, parentPhone: phone, reportOn, reportTime }));
+      if (result.activation === "submitted") toast("Parent saved. Welcome message submitted to WhatsApp.");
+      else if (result.activation === "pending") toast("Parent saved. WhatsApp submission is in progress.");
+      else if (result.activation === "failed") toast("Parent saved. WhatsApp message failed. Save again to retry.");
+      else toast("Parent Connect saved");
+    } catch {
+      toast("Couldn't save Parent Connect. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   }
   const primary = s.banks.find((b) => b.primary);
   return (
@@ -346,10 +364,10 @@ export function Integrations({ waOnly = false }: { waOnly?: boolean }) {
             <span className="tile mint">
               <I n="MessageCircle" />
             </span>
-            <Badge>{!s.parentPhone ? "Not set up" : ready ? "Report scheduled" : "Saved · delivery not live yet"}</Badge>
+            <Badge>{!s.parentPhone ? "Not set up" : ready && s.reportOn ? "Report scheduled" : "Parent saved"}</Badge>
           </div>
           <h2>WhatsApp daily report</h2>
-          <p>Reports are sent only to the number you enter, only if you turn them on. Your personal conversations are never accessed.</p>
+          <p>Saving a WhatsApp number sends a welcome message. Turn on daily reports to share spending summaries with this number.</p>
           <form className="formgrid" onSubmit={save}>
             <Field label="Parent / guardian name">
               <input name="name" defaultValue={s.parentName} maxLength={60} />
@@ -365,7 +383,7 @@ export function Integrations({ waOnly = false }: { waOnly?: boolean }) {
             </label>
             {!ready && <small>Report delivery starts once the automation backend is connected. Your settings are saved to your account.</small>}
             <div className="formend">
-              <Btn type="submit">Save</Btn>
+              <Btn type="submit" disabled={saving}>{saving ? "Saving…" : "Save"}</Btn>
             </div>
           </form>
         </section>
