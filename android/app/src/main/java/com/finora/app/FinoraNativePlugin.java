@@ -5,6 +5,8 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.provider.Settings;
+import android.net.Uri;
+import android.os.PowerManager;
 import androidx.core.app.NotificationManagerCompat;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -23,6 +25,14 @@ import java.util.Set;
 @CapacitorPlugin(name = "FinoraNative")
 public class FinoraNativePlugin extends Plugin {
     private static FinoraNativePlugin instance;
+    static volatile boolean visible = false; // true while FINORA is on screen
+
+    @Override
+    protected void handleOnResume() { visible = true; }
+
+    @Override
+    protected void handleOnPause() { visible = false; }
+
 
     @Override
     public void load() {
@@ -199,5 +209,42 @@ public class FinoraNativePlugin extends Plugin {
         JSObject r = new JSObject();
         r.put("apps", out);
         call.resolve(r);
+    }
+
+    @PluginMethod
+    public void permStatus(PluginCall call) {
+        Context c = getContext();
+        JSObject r = new JSObject();
+        r.put("overlay", Settings.canDrawOverlays(c));
+        PowerManager pm = (PowerManager) c.getSystemService(Context.POWER_SERVICE);
+        r.put("battery", pm != null && pm.isIgnoringBatteryOptimizations(c.getPackageName()));
+        call.resolve(r);
+    }
+
+    @PluginMethod
+    public void openOverlaySettings(PluginCall call) {
+        Intent i = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getContext().getPackageName()));
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        getContext().startActivity(i);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void openBatterySettings(PluginCall call) {
+        Intent i = new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        getContext().startActivity(i);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void drainAnswers(PluginCall call) {
+        try {
+            JSObject r = new JSObject();
+            r.put("items", new JSArray(BankNotificationService.drainAnswers(getContext()).toString()));
+            call.resolve(r);
+        } catch (Exception e) {
+            call.reject("answers failed");
+        }
     }
 }

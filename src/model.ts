@@ -40,6 +40,7 @@ export type Tx = {
   recon?: "confirmed" | "auto" | "user-confirmed";
   purpose?: string; // what the user said the payment was for
   purposeSkip?: boolean; // user chose not to answer
+  nid?: string; // id of the bank notification this record came from (links popup answers to it)
 };
 // Payments detected automatically that still need the "what was it for?" answer.
 export const needsPurpose = (t: Tx) => t.type === "debit" && (t.source === "notification" || t.source === "whatsapp") && t.purpose === undefined && !t.purposeSkip;
@@ -99,6 +100,7 @@ export type State = {
   alerts: boolean;
   control: string;
   apps: string[];
+  permsDone?: boolean; // first-run permission checklist finished/skipped
   guardApps?: string[]; // Android package names blocked/warned when the daily limit is reached
   importState: string;
   handled: string[];

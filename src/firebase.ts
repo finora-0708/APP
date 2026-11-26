@@ -95,7 +95,7 @@ export async function deleteCloud(uid: string) {
 }
 
 // ---- WhatsApp bot inbox: the Render bot writes parsed (structured) items here; the app imports and removes them ----
-export type InboxItem = { id: string; bankId: string; amount: number; type: "credit" | "debit"; account?: string; merchant?: string; ref?: string; balance?: number; ts: number; confidence: number; notes: string[] };
+export type InboxItem = { id: string; kind?: "balance"; balance?: number; bankId: string; amount: number; type: "credit" | "debit"; account?: string; merchant?: string; ref?: string; balance?: number; ts: number; confidence: number; notes: string[] };
 export async function pullInbox(uid: string): Promise<InboxItem[]> {
   const snap = await getDocs(collection(db, "users", uid, "inbox"));
   return snap.docs.map((d) => ({ ...(d.data() as Omit<InboxItem, "id">), id: d.id }));

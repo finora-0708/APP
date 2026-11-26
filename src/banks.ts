@@ -9,10 +9,11 @@ export type Bank = {
   packages: string[];
   keywords: string[];
   methods: string[];
+  waNumber?: string; // bank's OFFICIAL WhatsApp banking number (digits, with country code). Verify on the bank's website before relying on it.
 };
 const M = ["Notification tracking", "Manual entry", "Account Aggregator (needs provider)"];
 export const BANKS: Bank[] = [
-  { id: "sbi", name: "State Bank of India", short: "SBI", color: "#1b6fb5", packages: ["com.sbi.lotusintouch", "com.sbi.SBIFreedomPlus"], keywords: ["yono", "sbi"], methods: M },
+  { id: "sbi", name: "State Bank of India", short: "SBI", color: "#1b6fb5", packages: ["com.sbi.lotusintouch", "com.sbi.SBIFreedomPlus"], keywords: ["yono", "sbi"], methods: M, waNumber: "919022690226" },
   { id: "bom", name: "Bank of Maharashtra", short: "BoM", color: "#c8312b", packages: [], keywords: ["maharashtra", "mbanking", "mahabank"], methods: M },
   { id: "mgb", name: "Maharashtra Gramin Bank", short: "MGB", color: "#2c7a4b", packages: [], keywords: ["gramin", "mgb"], methods: M },
   { id: "boi", name: "Bank of India", short: "BOI", color: "#1d4f9c", packages: [], keywords: ["bank of india", "boi"], methods: M },

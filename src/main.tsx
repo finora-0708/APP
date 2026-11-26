@@ -12,7 +12,7 @@ import { C, useApp, I, Mark, Title, Badge, IconBtn, Btn, Empty, PurposePrompt } 
 import { emptyState, normalize, State, dateKey, uid, summary } from "./model";
 import { watchAuth, loadCloud, saveCloud, logout, localKey, AuthUser } from "./firebase";
 import { native } from "./native";
-import { BankSelect, NotificationAccess, Reconcile, Goals, useSync } from "./bankui";
+import { BankSelect, NotificationAccess, Reconcile, Goals, useSync, PermissionSetup } from "./bankui";
 import { Home } from "./home";
 import { Analytics } from "./charts";
 import { Expense, Transactions, Detail } from "./transactions";
@@ -262,6 +262,7 @@ function NativeSync() {
     <>
       <GuardSync />
       <PurposePrompt />
+      <PermissionSetup />
     </>
   );
 }

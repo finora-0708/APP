@@ -41,7 +41,7 @@ export function ingest(s: State, raws: RawNotification[]): { state: State; saved
     if (dup === "duplicate") { log(r, bank.id, "duplicate", "Already recorded – skipped."); continue; }
     const cat = p.type === "debit" ? guessCategory(p.merchant) : "Income";
     if (p.confidence >= AUTO && !dup) {
-      tx.push({ id: uid(), title: title(p), amount: p.amount, category: cat || "Others", date: dayOf(p.ts), time: timeOf(p.ts), type: p.type, method: "Bank notification", notes: "", source: "notification", bankId: bank.id, account: p.account, ref: p.ref, confidence: p.confidence, recon: "auto" });
+      tx.push({ id: uid(), title: title(p), amount: p.amount, category: cat || "Others", date: dayOf(p.ts), time: timeOf(p.ts), type: p.type, method: "Bank notification", notes: "", source: "notification", bankId: bank.id, account: p.account, ref: p.ref, confidence: p.confidence, recon: "auto", nid: r.id });
       saved++;
       log(r, bank.id, "saved", (p.type === "debit" ? "−" : "+") + p.amount + " " + title(p));
     } else {
@@ -53,8 +53,16 @@ export function ingest(s: State, raws: RawNotification[]): { state: State; saved
   }
   return { state: { ...s, tx, review, banks, seen: [...seen].slice(-300), nlog: [...nlog.reverse(), ...s.nlog].slice(0, 50), sync: new Date().toISOString() }, saved, review: rev };
 }
+// Answers typed in the native "what was this for?" popup (shown over other apps). Matched to the record by notification id.
+export type PurposeAnswer = { pid: string; purpose: string; category?: string; skip?: boolean };
+export function applyAnswers(s: State, answers: PurposeAnswer[]): State {
+  if (!answers.length) return s;
+  const by = new Map(answers.map((a) => [a.pid, a]));
+  return { ...s, tx: s.tx.map((t) => { const a = t.nid ? by.get(t.nid) : undefined; return a ? { ...t, purpose: a.skip ? undefined : a.purpose || undefined, purposeSkip: a.skip || undefined, category: a.category || t.category } : t; }) };
+}
+
 // Items parsed by the WhatsApp bot (user forwarded the bank text). Same duplicate/confidence rules as notifications.
-export type RemoteItem = { id: string; bankId: string; amount: number; type: "credit" | "debit"; account?: string; merchant?: string; ref?: string; balance?: number; ts: number; confidence: number; notes: string[] };
+export type RemoteItem = { id: string; kind?: "balance"; bankId: string; amount: number; type: "credit" | "debit"; account?: string; merchant?: string; ref?: string; balance?: number; ts: number; confidence: number; notes: string[] };
 export function ingestRemote(s: State, items: RemoteItem[]): { state: State; saved: number; review: number } {
   let saved = 0, rev = 0;
   const seen = new Set(s.seen), tx = [...s.tx], review = [...s.review], nlog: NLog[] = [], banks = s.banks.map((b) => ({ ...b }));
@@ -63,6 +71,14 @@ export function ingestRemote(s: State, items: RemoteItem[]): { state: State; sav
     const key = "wa:" + it.id;
     if (seen.has(key)) continue;
     seen.add(key);
+    if (it.kind === "balance") { // balance read from a bank statement the user forwarded
+      const bk = banks.find((b) => b.id === it.bankId) || primary;
+      if (bk && it.balance !== undefined && it.ts >= (bk.lastBalance?.ts || 0)) {
+        bk.lastBalance = { amount: it.balance, ts: it.ts };
+        nlog.push({ id: uid(), ts: it.ts, bankId: bk.id, result: "saved", summary: "WhatsApp: bank balance updated from statement" });
+      }
+      continue;
+    }
     const bankId = (it.bankId && banks.some((b) => b.id === it.bankId) ? it.bankId : primary?.id) || it.bankId || "";
     const bank = banks.find((b) => b.id === bankId);
     const p: Parsed = { bankId, amount: it.amount, type: it.type, account: it.account, merchant: it.merchant, ref: it.ref, balance: it.balance, ts: it.ts, confidence: it.confidence, notes: it.notes || [] };

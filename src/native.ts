@@ -15,6 +15,10 @@ type Native = {
   openAccessibilitySettings(): Promise<void>;
   setGuard(o: { mode: string; packages: string[]; limit: number; spent: number; date: string }): Promise<void>;
   filterInstalled(o: { packages: string[] }): Promise<{ apps: { pkg: string; label: string }[] }>;
+  permStatus(): Promise<{ overlay: boolean; battery: boolean }>;
+  openOverlaySettings(): Promise<void>;
+  openBatterySettings(): Promise<void>;
+  drainAnswers(): Promise<{ items: { pid: string; purpose: string; category?: string; skip?: boolean }[] }>;
   addListener(ev: "bankNotification", fn: () => void): Promise<{ remove: () => void }>;
 };
 // Common Indian payment apps (checked for installation only; nothing else is listed).
@@ -45,6 +49,15 @@ export const native = {
     const h = plugin.addListener("bankNotification", fn);
     return () => { h.then((x) => x.remove()); };
   },
+  async answers() { if (!isNative()) return []; try { return (await plugin.drainAnswers()).items; } catch { return []; } },
+  async permStatus() {
+    if (!isNative()) return { overlay: false, battery: false, notif: false };
+    let notif = false;
+    try { notif = (await LocalNotifications.checkPermissions()).display === "granted"; } catch {}
+    try { return { ...(await plugin.permStatus()), notif }; } catch { return { overlay: false, battery: false, notif }; }
+  },
+  openOverlaySettings: () => (isNative() ? plugin.openOverlaySettings() : Promise.resolve()),
+  openBatterySettings: () => (isNative() ? plugin.openBatterySettings() : Promise.resolve()),
   // ---- Spending Guard ----
   async guardEnabled() { if (!isNative()) return false; try { return (await plugin.isGuardEnabled()).enabled; } catch { return false; } },
   openGuardSettings: () => (isNative() ? plugin.openAccessibilitySettings() : Promise.resolve()),

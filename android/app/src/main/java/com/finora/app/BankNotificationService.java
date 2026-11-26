@@ -71,7 +71,7 @@ public class BankNotificationService extends NotificationListenerService {
             o.put("ts", sbn.getPostTime());
             o.put("test", test);
             push(ctx, o);
-            if (!test) handlePayment(ctx, title + " " + text);
+            if (!test) handlePayment(ctx, title + " " + text, o.optString("id"));
             FinoraNativePlugin.pingJs();
         } catch (Exception ignored) {
         }
@@ -83,7 +83,7 @@ public class BankNotificationService extends NotificationListenerService {
     private static final Pattern IS_CREDIT = Pattern.compile("(?i)\\b(credited|credit|received|deposited|refund)\\b");
 
     /** For debits: ask the user what the payment was for, and keep the Spending Guard's "spent today" current even if the app is closed. */
-    private void handlePayment(Context ctx, String all) {
+    private void handlePayment(Context ctx, String all, String pid) {
         try {
             boolean debit = IS_DEBIT.matcher(all).find() && !(IS_CREDIT.matcher(all).find() && all.toLowerCase(Locale.ROOT).indexOf("credit") < all.toLowerCase(Locale.ROOT).indexOf("debit"));
             if (!debit) return;
@@ -95,12 +95,20 @@ public class BankNotificationService extends NotificationListenerService {
             String today = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date());
             float spent = today.equals(p.getString("guard_date", "")) ? p.getFloat("guard_spent", 0f) : 0f;
             p.edit().putString("guard_date", today).putFloat("guard_spent", spent + (float) amt).apply();
-            askPurpose(ctx, amt);
+            if (FinoraNativePlugin.visible) return; // app is open: the in-app popup asks instead
+            int nid = Math.abs(pid.hashCode());
+            askPurpose(ctx, amt, nid);
+            if (android.provider.Settings.canDrawOverlays(ctx)) { // permission lets a popup appear over other apps
+                Intent i = new Intent(ctx, PurposeActivity.class);
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                i.putExtra("pid", pid).putExtra("nid", nid).putExtra("amount", Math.round(amt));
+                ctx.startActivity(i);
+            }
         } catch (Exception ignored) {
         }
     }
 
-    private void askPurpose(Context c, double amt) {
+    private void askPurpose(Context c, double amt, int nid) {
         NotificationManager nm = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm == null) return;
         if (Build.VERSION.SDK_INT >= 26)
@@ -117,7 +125,7 @@ public class BankNotificationService extends NotificationListenerService {
             .setAutoCancel(true)
             .setContentIntent(pi)
             .build();
-        nm.notify((int) (System.currentTimeMillis() / 1000L), n);
+        nm.notify(nid, n);
     }
 
     static SharedPreferences getPrefs(Context c) {
@@ -133,6 +141,13 @@ public class BankNotificationService extends NotificationListenerService {
         JSONArray cut = new JSONArray();
         for (int i = Math.max(0, a.length() - 200); i < a.length(); i++) cut.put(a.get(i));
         p.edit().putString(KEY_QUEUE, cut.toString()).apply();
+    }
+
+    static synchronized JSONArray drainAnswers(Context c) throws Exception {
+        SharedPreferences p = getPrefs(c);
+        JSONArray a = new JSONArray(p.getString("answers", "[]"));
+        p.edit().putString("answers", "[]").apply();
+        return a;
     }
 
     static synchronized JSONArray drain(Context c) throws Exception {

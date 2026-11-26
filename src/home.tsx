@@ -68,7 +68,7 @@ export function Home() {
           <div className="bankfoot">
             <span>
               <i />
-              {m.balanceSource === "bank" ? "From bank notification · " + new Date(m.balanceTs).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : primary?.packages.length ? "Notification tracking on · calculated from your records" : "Bank not connected · calculated from your records"}
+              {m.balanceSource === "bank" ? "From bank message/statement · " + new Date(m.balanceTs).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : primary?.packages.length ? "Notification tracking on · calculated from your records" : "Bank not connected · calculated from your records"}
             </span>
             <button title={"Updated " + new Date(s.sync).toLocaleString()} onClick={() => sync()}>
               <I n="RefreshCw" size={13} /> Refresh

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useApp, I, Btn, Title, Badge, Empty, Field } from "./ui";
 import { BANKS, SelectedBank, bankById } from "./banks";
 import { native, isNative } from "./native";
-import { ingest, ingestRemote, confirmReview, bankName } from "./engine";
+import { ingest, ingestRemote, confirmReview, bankName, applyAnswers } from "./engine";
 import { auth, pullInbox, clearInbox } from "./firebase";
 import { backend } from "./services";
 import { cats, uid } from "./model";
@@ -12,15 +12,19 @@ export function useSync() {
   const { set, toast } = useApp();
   return async (quiet = false) => {
     const raws = await native.drain();
+    const answers = await native.answers();
     // WhatsApp bot items (structured only). Import first, delete from the server only after they are in state.
     let inbox: Awaited<ReturnType<typeof pullInbox>> = [];
     const u = auth.currentUser?.uid;
     if (u) { try { inbox = await pullInbox(u); } catch {} }
-    if (!raws.length && !inbox.length) { if (!quiet) toast("No new bank notifications."); return; }
+    const gotBal = inbox.some((i) => i.kind === "balance");
+    if (gotBal) setTimeout(() => toast("Bank statement balance updated"), 0);
+    if (!raws.length && !inbox.length && !answers.length) { if (!quiet) toast("No new bank notifications."); return; }
     set((p) => {
       let st = p, saved = 0, rv = 0;
       if (raws.length) { const r = ingest(st, raws); st = r.state; saved += r.saved; rv += r.review; }
       if (inbox.length) { const r = ingestRemote(st, inbox); st = r.state; saved += r.saved; rv += r.review; }
+      st = applyAnswers(st, answers);
       if (!quiet || saved || rv) setTimeout(() => toast(saved + " saved · " + rv + " need review"), 0);
       return st;
     });
@@ -125,6 +129,49 @@ export function DetectedApps() {
   );
 }
 
+// Guided flow for banks with an official WhatsApp banking number (e.g. SBI): the USER chats with the bank,
+// then forwards the statement reply to the FINORA bot. FINORA never messages the bank on your behalf.
+export function BankChat() {
+  const { s, toast } = useApp();
+  const [bot, setBot] = useState(""), [ask, setAsk] = useState(false), [busy, B] = useState(false);
+  useEffect(() => { backend<{ botNumber: string }>("/wa/info", {}).then((r) => setBot(r.botNumber)).catch(() => {}); }, []);
+  const banks = s.banks.map((b) => ({ b, def: BANKS.find((x) => x.id === b.id) })).filter((x) => x.def?.waNumber);
+  if (!banks.length) return null;
+  async function sendParent() {
+    B(true);
+    try { await backend("/parent/send-now", {}); toast("Statement sent to your parent"); }
+    catch (e: any) { toast("Could not send: " + (e?.message || "server error")); }
+    B(false); setAsk(false);
+  }
+  return (
+    <section className="panel">
+      <div className="sectionhead"><span className="tile mint"><I n="MessageCircle" /></span><Badge>Check balance via bank WhatsApp</Badge></div>
+      <h2>Bank WhatsApp statement</h2>
+      {banks.map(({ def }) => (
+        <div key={def!.id}>
+          <p><small><b>{def!.short}</b> official WhatsApp banking (verify this number on the bank&apos;s website; you may need to register your mobile number with the bank first).</small></p>
+          <ol className="steps">
+            <li>Tap <b>Open {def!.short} WhatsApp</b> and send &quot;Hi&quot; from your registered number.</li>
+            <li>Choose <b>Mini statement</b> in the bank&apos;s menu.</li>
+            <li>When the statement arrives, long-press it → <b>Forward</b> → FINORA bot.</li>
+            <li>Open FINORA: the balance updates, matching payments are skipped and new ones are shown for your review.</li>
+          </ol>
+          <a className="btn" href={"https://wa.me/" + def!.waNumber + "?text=Hi"} target="_blank" rel="noreferrer">Open {def!.short} WhatsApp</a>{" "}
+          {bot && <a className="btn ghost" href={"https://wa.me/" + bot} target="_blank" rel="noreferrer">Open FINORA bot</a>}
+        </div>
+      ))}
+      {s.parentPhone ? (
+        !ask ? <Btn icon="MessageCircle" onClick={() => setAsk(true)}>Send statement to {s.parentName || "parent"}</Btn> : (
+          <div className="listline">
+            <span>Send today&apos;s statement{s.banks.find((b) => b.lastBalance) ? " with bank balance" : ""} to {s.parentName || "your parent"} ({s.parentPhone})?</span>
+            <span><Btn disabled={busy} onClick={sendParent}>{busy ? "Sending…" : "Yes, send"}</Btn> <Btn kind="ghost" onClick={() => setAsk(false)}>Cancel</Btn></span>
+          </div>
+        )
+      ) : <p><small>Add a parent in Parent Connect to send the statement.</small></p>}
+    </section>
+  );
+}
+
 export function WhatsAppBot() {
   const { toast } = useApp(), [info, setInfo] = useState<{ code: string; botNumber: string } | null>(null), [busy, B] = useState(false);
   async function get() {
@@ -191,6 +238,7 @@ export function NotificationAccess({ embedded = false }: { embedded?: boolean })
       </section>
       {!embedded && <DetectedApps />}
       {!embedded && <WhatsAppBot />}
+      {!embedded && <BankChat />}
       {!embedded && (
         <section className="panel">
           <div className="sectionhead">
@@ -274,5 +322,45 @@ export function Goals() {
         <div className="formend"><Btn type="submit" icon="Plus">Add goal</Btn></div>
       </form>
     </>
+  );
+}
+
+// First-run checklist: asks for everything FINORA needs, right after the app is opened. Each item is optional and explained.
+export function PermissionSetup() {
+  const { s, set } = useApp();
+  const [st, S] = useState({ notif: false, overlay: false, battery: false, access: false, guard: false });
+  const refresh = async () => {
+    const [p, access, guard] = await Promise.all([native.permStatus(), native.accessEnabled(), native.guardEnabled()]);
+    S({ notif: p.notif, overlay: p.overlay, battery: p.battery, access, guard });
+  };
+  useEffect(() => {
+    refresh();
+    const v = () => document.visibilityState === "visible" && refresh();
+    document.addEventListener("visibilitychange", v);
+    return () => document.removeEventListener("visibilitychange", v);
+  }, []);
+  if (!isNative() || !s.ready || s.permsDone) return null;
+  const rows: [string, string, boolean, () => void][] = [
+    ["Notifications", "Reminders and the \"what was this payment for?\" alert.", st.notif, async () => { await native.askNotifyPermission(); refresh(); }],
+    ["Bank notification access", "Lets FINORA notice bank payment notifications from the bank apps you select. Nothing else is read.", st.access, () => native.openSettings()],
+    ["Display over other apps", "Shows the quick \"what was this for?\" popup on top of any app right after a payment.", st.overlay, () => native.openOverlaySettings()],
+    ["Run in background", "Choose \"Unrestricted / Don't optimise\" so Android does not stop FINORA from seeing payments.", st.battery, () => native.openBatterySettings()],
+    ["Spending Guard (optional)", "Warns or blocks payment apps after your daily limit. Only notices which app opens. Set the apps later in Spending Control.", st.guard, () => native.openGuardSettings()],
+  ];
+  const finish = () => set((p) => ({ ...p, permsDone: true }));
+  return (
+    <div className="overlay">
+      <div className="dialog" role="dialog" aria-modal="true" style={{ maxHeight: "90vh", overflowY: "auto" }}>
+        <h2>Allow what FINORA needs</h2>
+        <p><small>Each permission is optional and can be changed later. If a screen says &quot;restricted setting&quot; on Android 13+, open Settings → Apps → FINORA → ⋮ → Allow restricted settings and try again.</small></p>
+        {rows.map(([t, d, ok, go]) => (
+          <div key={t} className="listline">
+            <span><b>{t}</b><br /><small>{d}</small></span>
+            {ok ? <Badge>On</Badge> : <Btn onClick={go}>Allow</Btn>}
+          </div>
+        ))}
+        <div className="formend"><Btn onClick={finish}>{rows.slice(0, 4).every((r) => r[2]) ? "Done" : "Continue"}</Btn></div>
+      </div>
+    </div>
   );
 }
