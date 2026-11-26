@@ -1,6 +1,11 @@
 package com.finora.app;
 
 import android.content.Context;
+import androidx.appcompat.app.AlertDialog;
+import android.text.InputType;
+import android.view.WindowManager;
+import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
@@ -58,6 +63,53 @@ public class FinoraNativePlugin extends Plugin {
             activeToast = Toast.makeText(getContext().getApplicationContext(), message, Toast.LENGTH_SHORT);
             activeToast.show();
             call.resolve();
+        });
+    }
+
+    @PluginMethod
+    public void editSetupValue(PluginCall call) {
+        String title = call.getString("title", "Edit");
+        String value = call.getString("value", "");
+        String kind = call.getString("kind", "text");
+        getActivity().runOnUiThread(() -> {
+            AlertDialog.Builder builder = new AlertDialog.Builder(getActivity()).setTitle(title)
+                .setNegativeButton(android.R.string.cancel, (dialog, which) -> call.resolve())
+                .setOnCancelListener(dialog -> call.resolve());
+            if ("currency".equals(kind)) {
+                String[] choices = {"INR", "USD", "GBP", "EUR"};
+                int selected = java.util.Arrays.asList(choices).indexOf(value);
+                builder.setSingleChoiceItems(choices, selected, (dialog, index) -> {
+                    JSObject result = new JSObject();
+                    result.put("value", choices[index]);
+                    call.resolve(result);
+                    dialog.dismiss();
+                }).show();
+                return;
+            }
+            EditText input = new EditText(getActivity());
+            input.setSingleLine(true);
+            if ("decimal".equals(kind)) {
+                input.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL | InputType.TYPE_NUMBER_FLAG_SIGNED);
+            } else if ("email".equals(kind)) {
+                input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
+            } else {
+                input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
+            }
+            input.setText(value);
+            input.setSelection(input.length());
+            FrameLayout container = new FrameLayout(getActivity());
+            int inset = Math.round(24 * getActivity().getResources().getDisplayMetrics().density);
+            container.setPadding(inset, 0, inset, 0);
+            container.addView(input);
+            AlertDialog dialog = builder.setView(container)
+                .setPositiveButton(android.R.string.ok, (window, which) -> {
+                    JSObject result = new JSObject();
+                    result.put("value", input.getText().toString());
+                    call.resolve(result);
+                }).create();
+            input.requestFocus();
+            if (dialog.getWindow() != null) dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
+            dialog.show();
         });
     }
 

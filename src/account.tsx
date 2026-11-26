@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   useApp,
   I,
@@ -12,11 +13,11 @@ import {
   Contours,
 } from "./ui";
 import { dateKey, summary, total, cats, offset, emptyState } from "./model";
-import { Confirm, Rules, Integrations } from "./planning";
+import { Confirm } from "./planning";
 import { services } from "./services";
 import { googleSignIn, authMessage, logout, deleteCloud } from "./firebase";
-import { native } from "./native";
-import { BankSelect, BankSources } from "./bankui";
+import { isAndroid, native } from "./native";
+import { BankSelect, WhatsAppLinkRow } from "./bankui";
 export function ProfileForm({
   next,
   budget = false,
@@ -232,72 +233,111 @@ export function Permissions() {
     </section>
   );
 }
-export function Onboarding() {
-  const { go, set } = useApp(),
-    [step, S] = useState(0),
-    titles = [
-      "Profile setup",
-      "Select your bank",
-      "Bank notification access",
-      "Parent Connect",
-      "Daily spending limit",
-      "Regular daily expenses",
-      "Fixed monthly expenses",
-      "Permissions",
-    ],
-    last = titles.length - 1,
-    next = () => {
-      if (step === last) {
-        set((p) => ({ ...p, ready: true }));
-        go("/", { replace: true });
-      } else S(step + 1);
-    };
-  useEffect(() => { window.scrollTo(0, 0); }, [step]);
+function AndroidSetupFields({ budget }: { budget: boolean }) {
+  const { s, set, toast, f } = useApp();
+  const fields = budget ? (["daily", "monthly", "currency"] as const) :
+    (["name", "email", "country", "opening", "income", "currency"] as const);
+  const labels = {
+    daily: "Daily spending limit", monthly: "Monthly budget", currency: "Currency",
+    name: "Full name", email: "Email", country: "Country", opening: "Opening balance", income: "Monthly income",
+  };
+  async function edit(key: typeof fields[number]) {
+    const numeric = typeof s[key] === "number";
+    try {
+      const result = await native.editSetupValue({
+        title: labels[key], value: String(s[key]),
+        kind: numeric ? "decimal" : key === "email" ? "email" : key === "currency" ? "currency" : "text",
+      });
+      if (result.value === undefined) return;
+      const value = result.value.trim();
+      const amount = Number(value.replace(",", "."));
+      if (numeric) {
+        if (!Number.isFinite(amount) || ((key === "daily" || key === "monthly") && amount <= 0) || (key === "income" && amount < 0)) {
+          toast("Enter a valid amount");
+          return;
+        }
+        set((p) => ({ ...p, [key]: amount }));
+      } else {
+        if (!value || (key === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))) {
+          toast("Enter a valid " + labels[key].toLowerCase());
+          return;
+        }
+        set((p) => ({ ...p, [key]: key === "name" ? value.slice(0, 60) : value }));
+      }
+    } catch {
+      toast("Could not open Android editor");
+    }
+  }
   return (
-    <>
-      <Title title={titles[step]} sub={"Step " + (step + 1) + " of " + titles.length} />
-      <div className="steps">
-        {titles.map((v, i) => (
-          <i key={v} className={i <= step ? "active" : ""} />
-        ))}
-      </div>
-      {step === 0 ? (
-        <ProfileForm only next={next} />
-      ) : step === 1 ? (
-        <BankSelect />
-      ) : step === 2 ? (
-        <BankSources />
-      ) : step === 3 ? (
-        <Integrations waOnly />
-      ) : step === 4 ? (
-        <>
-          <p>How much money do you want to spend daily?</p>
-          <ProfileForm budget next={next} />
-        </>
-      ) : step === 5 || step === 6 ? (
-        <Rules key={step} bills={step === 6} embedded />
-      ) : (
-        <Permissions />
-      )}
-      <div className="formend">
-        <Btn kind="ghost" onClick={() => (step ? S(step - 1) : undefined)} disabled={!step}>
-          Back
-        </Btn>
-        {[1, 2, 3, 5, 6].includes(step) && (
-          <Btn kind="ghost" onClick={next}>
-            Skip for now
-          </Btn>
+    <div className="setup-list">
+      {fields.map((key) => {
+        const value = s[key];
+        return <SetupRow key={key} label={labels[key]} detail={typeof value === "number" ? f(value, 2) : value} onClick={() => void edit(key)} />;
+      })}
+    </div>
+  );
+}
+
+function SetupRow({ label, detail, onClick }: { label: string; detail: string; onClick: () => void }) {
+  return (
+    <button className="settingbtn setup-row" onClick={onClick}>
+      <strong>{label}</strong>
+      <span>{detail} <I n="ChevronRight" size={16} /></span>
+    </button>
+  );
+}
+
+export function Onboarding() {
+  const { go, set, s } = useApp();
+  const [params, setParams] = useSearchParams();
+  const titles = ["Your profile", "Choose your banks", "Transaction sources", "Parent Connect",
+    "Set your budget", "Regular expenses", "Monthly bills", "Permissions"];
+  const last = titles.length - 1;
+  const requested = Number(params.get("step"));
+  const step = Number.isInteger(requested) && requested >= 0 && requested <= last ? requested : 0;
+  const change = (value: number) => setParams({ step: String(value) });
+  const next = () => {
+    if (step < last) change(step + 1);
+    else {
+      set((p) => ({ ...p, ready: true, permsDone: true }));
+      go("/", { replace: true });
+    }
+  };
+  const hasWebForm = !isAndroid() && (step === 0 || step === 4);
+  useEffect(() => window.scrollTo(0, 0), [step]);
+  return (
+    <section className="setup-screen">
+      <header className="setup-header">
+        <small>Quick setup · {step + 1} of {titles.length}</small>
+        <progress aria-label="Quick setup progress" value={step + 1} max={titles.length} />
+        <h1>{titles[step]}</h1>
+      </header>
+      <div className="setup-body">
+        {(step === 0 || step === 4) && (isAndroid()
+          ? <AndroidSetupFields budget={step === 4} />
+          : <ProfileForm key={step} only={step === 0} budget={step === 4} next={next} />)}
+        {step === 1 && <BankSelect />}
+        {step === 2 && (
+          <div className="setup-list">
+            <WhatsAppLinkRow />
+            <SetupRow label="Bank notification access" detail="Optional" onClick={() => go("/notification-access")} />
+          </div>
         )}
-        {![0, 4].includes(step) && (
-          <Btn onClick={next}>{step === last ? "Finish setup" : "Continue"}</Btn>
-        )}
+        {step === 3 && <SetupRow label="Parent Connect" detail={s.parentPhone ? "Configured" : "Optional"} onClick={() => go("/integrations")} />}
+        {step === 5 && <SetupRow label="Regular expenses" detail="Manage" onClick={() => go("/reminders")} />}
+        {step === 6 && <SetupRow label="Monthly bills" detail="Manage" onClick={() => go("/bills")} />}
+        {step === last && <Permissions />}
       </div>
-    </>
+      <footer className="setup-actions">
+        <Btn kind="ghost" icon="ArrowLeft" onClick={() => step ? change(step - 1) : go("/")}>Back</Btn>
+        {!hasWebForm && <Btn onClick={next}>{step === last ? "Finish setup" : "Continue"}</Btn>}
+      </footer>
+    </section>
   );
 }
 const GROUPS: [string, string[]][] = [
   ["Account", ["Google account", "Profile setup", "Log out"]],
-  ["Money", ["Banks & notifications", "Fixed monthly expenses", "Expense reminders", "Savings goals", "Spending control"]],
+  ["Money", ["WhatsApp linking", "Banks & notifications", "Fixed monthly expenses", "Expense reminders", "Savings goals", "Spending control"]],
   ["Family & alerts", ["Parent Connect", "Notification settings"]],
   ["App & privacy", ["Theme", "Privacy policy", "Data export", "Delete my data"]],
 ];
@@ -346,6 +386,7 @@ export function Profile() {
           ["Notification settings", s.permission, () => go("/preferences")],
           ["Expense reminders", "Manage", () => go("/reminders")],
           ["Fixed monthly expenses", "Manage", () => go("/bills")],
+          ["WhatsApp linking", "Manage", () => go("/profile/whatsapp")],
           ["Banks & notifications", "Manage", () => go("/banks")],
           ["Parent Connect", "Manage", () => go("/integrations")],
           ["Savings goals", "Manage", () => go("/goals")],

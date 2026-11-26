@@ -4,7 +4,10 @@ import { BANKS, SelectedBank } from "./banks";
 import { RawNotification } from "./parsers";
 import type { Rule } from "./model";
 
+type SetupField = { title: string; value: string; kind?: "text" | "email" | "decimal" | "currency" };
+
 type Native = {
+  editSetupValue(field: SetupField): Promise<{ value?: string }>;
   showToast(o: { message: string }): Promise<void>;
   isNotificationAccessEnabled(): Promise<{ enabled: boolean }>;
   openNotificationAccessSettings(): Promise<void>;
@@ -26,7 +29,9 @@ type Native = {
 export const PAY_APPS = ["com.google.android.apps.nbu.paisa.user", "com.phonepe.app", "net.one97.paytm", "in.org.npci.upiapp", "com.dreamplug.androidapp", "com.mobikwik_new", "com.freecharge.android", "com.amazon.mShop.android.shopping", "in.amazon.mShop.android.shopping"];
 const plugin = registerPlugin<Native>("FinoraNative");
 export const isNative = () => Capacitor.isNativePlatform();
+export const isAndroid = () => Capacitor.getPlatform() === "android";
 export const native = {
+  editSetupValue: (field: SetupField) => plugin.editSetupValue(field),
   async showToast(message: string) {
     if (Capacitor.getPlatform() !== "android" || message.length > 52) return false;
     try {

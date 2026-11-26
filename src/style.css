@@ -1473,3 +1473,56 @@ html.native .btn:active, html.native .iconbtn:active, html.native .bottomnav a:a
   html.native main { padding-bottom: calc(90px + var(--inset-bottom)); }
   html.native .toast { bottom: calc(76px + var(--inset-bottom)); }
 }
+
+
+.setup-screen, .link-screen { max-width: 640px; margin-inline: auto; }
+.setup-header { display: grid; gap: 12px; margin-block: 8px 20px; }
+.setup-header h1 { margin: 0; }
+.setup-header small { color: var(--muted); }
+.setup-header progress { width: 100%; height: 6px; accent-color: var(--green); }
+.setup-body { min-width: 0; }
+.setup-list {
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--card);
+  overflow: hidden;
+}
+.setup-row, .link-settings-row {
+  gap: 12px;
+  min-height: 60px;
+  padding-inline: 16px;
+  text-align: left;
+}
+.setup-row > span { min-width: 0; overflow-wrap: anywhere; }
+.setup-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+}
+.link-settings-row {
+  border: 1px solid var(--line);
+  background: var(--card);
+  border-radius: 16px;
+  margin-block: 12px;
+}
+.setup-list .link-settings-row { border: 0; border-radius: 0; margin: 0; }
+.link-settings-row strong { display: flex; align-items: center; gap: 10px; }
+.link-sheet {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding: 24px 16px;
+  border-radius: 28px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  text-align: center;
+}
+.link-sheet :is(h2, p) { margin: 0; }
+.link-sheet small { color: var(--muted); }
+.link-qr {
+  width: min(248px, 100%);
+  aspect-ratio: 1;
+  border-radius: 12px;
+  background: white;
+}

@@ -1,3 +1,4 @@
+import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import { useApp, I, Btn, Title, Badge, Empty, Field } from "./ui";
 import { BANKS, SelectedBank, bankById } from "./banks";
@@ -134,7 +135,7 @@ export function DetectedApps() {
 export function BankSources() {
   return (
     <>
-      <WhatsAppBot />
+      <WhatsAppLinkRow />
       <BankChat />
       <NotificationAccess embedded />
     </>
@@ -261,43 +262,101 @@ export function BankChat() {
   );
 }
 
-export function WhatsAppBot() {
-  const { toast } = useApp(), [info, setInfo] = useState<{ code: string; botNumber: string } | null>(null), [busy, B] = useState(false);
+export function WhatsAppLinkRow() {
+  const { go } = useApp();
+  return (
+    <button className="settingbtn link-settings-row" onClick={() => go("/profile/whatsapp")}>
+      <strong><I n="MessageCircle" /> WhatsApp linking</strong>
+      <span>Manage <I n="ChevronRight" size={16} /></span>
+    </button>
+  );
+}
+
+export function WhatsAppLinkScreen() {
+  const { go } = useApp();
+  const [link, setLink] = useState<{ url: string; image: string; expiresAt: number }>();
   const [linked, setLinked] = useState<string | null>(null);
-  async function refresh() {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    async function refresh() {
+      try {
+        const result = await backend<{ linkedNumber: string | null }>("/wa/info", {});
+        if (active) setLinked(result.linkedNumber);
+      } catch {}
+    }
+    function onResume() {
+      if (document.visibilityState === "visible") void refresh();
+    }
+    void refresh();
+    const timer = link ? setInterval(onResume, 5000) : undefined;
+    document.addEventListener("visibilitychange", onResume);
+    return () => {
+      active = false;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onResume);
+    };
+  }, [link]);
+
+  useEffect(() => {
+    if (!link) return;
+    if (linked) {
+      setLink(undefined);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setLink(undefined);
+      setError("This QR code expired. Generate a new one.");
+    }, Math.max(0, link.expiresAt - Date.now()));
+    return () => clearTimeout(timer);
+  }, [link, linked]);
+
+  async function generate() {
+    setBusy(true);
+    setError("");
     try {
-      const result = await backend<{ linkedNumber: string | null }>("/wa/info", {});
-      setLinked(result.linkedNumber);
-    } catch {
-      toast("Couldn't check WhatsApp link status. Try again in a minute.");
+      const result = await backend<{ code: string; botNumber: string; expiresAt: number }>("/wa/link-code", {});
+      if (!/^\d{6}$/.test(result.code) || !/^[1-9]\d{9,14}$/.test(result.botNumber) || !(result.expiresAt > Date.now())) {
+        throw new Error("Finora could not get a valid WhatsApp link. Try again.");
+      }
+      const url = "https://wa.me/" + result.botNumber + "?text=" + encodeURIComponent("LINK " + result.code);
+      const image = await QRCode.toDataURL(url, { errorCorrectionLevel: "M", margin: 4, scale: 8 });
+      setLink({ url, image, expiresAt: result.expiresAt });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not generate a QR code.");
+    } finally {
+      setBusy(false);
     }
   }
-  useEffect(() => {
-    backend<{ linkedNumber: string | null }>("/wa/info", {})
-      .then((result) => setLinked(result.linkedNumber))
-      .catch(() => {});
-  }, []);
-  async function get() {
-    B(true);
-    try { setInfo(await backend<{ code: string; botNumber: string }>("/wa/link-code", {})); }
-    catch (e) { toast("Server is waking up or offline. Try again in a minute."); }
-    B(false);
-  }
-  const num = info?.botNumber.replace(/\D/g, "") || "";
+
   return (
-    <section className="panel">
-      <div className="sectionhead"><span className="tile mint"><I n="MessageCircle" /></span><Badge>{linked ? "Linked · " + linked : "WhatsApp imports"}</Badge></div>
-      <h2>Link your bank-registered WhatsApp</h2>
-      <p>Send the link code from the WhatsApp number registered with your bank. You can use WhatsApp imports on their own or with bank notifications.</p>
-      <p><small>If a bank app does not send a notification, forward or paste the bank SMS text to the FINORA WhatsApp number. FINORA records the amount, debit/credit, reference and balance if present. OTP messages are ignored and the raw text is not stored. Send BALANCE, TODAY or MONTH to the bot for a quick summary.</small></p>
-      <Btn kind="ghost" onClick={() => void refresh()}>Check link status</Btn>{" "}
-      {!info ? <Btn icon="Link2" disabled={busy} onClick={get}>{busy ? "Please wait…" : "Link my WhatsApp"}</Btn> : (
-        <>
-          <div className="listline"><span>Send this message from your WhatsApp</span><b>LINK {info.code}</b></div>
-          <p><small>Code is valid for 15 minutes.</small></p>
-          {num ? <a className="btn" href={"https://wa.me/" + num + "?text=" + encodeURIComponent("LINK " + info.code)} target="_blank" rel="noreferrer">Open WhatsApp</a> : <p><small>Send it to the FINORA WhatsApp number.</small></p>}
-        </>
-      )}
+    <section className="link-screen">
+      <Btn kind="ghost" icon="ArrowLeft" onClick={() => go("/profile")}>Profile</Btn>
+      <Title title="WhatsApp linking" />
+      <div className="link-sheet">
+        <span className="tile mint"><I n="MessageCircle" size={24} /></span>
+        <h2>{linked ? "WhatsApp connected" : "Connect your WhatsApp"}</h2>
+        {linked ? (
+          <p role="status">Linked number {linked}</p>
+        ) : (
+          <>
+            <p>Use the WhatsApp number registered with your bank.</p>
+            {link ? (
+              <>
+                <img className="link-qr" src={link.image} alt="QR code to open the Finora bot in WhatsApp" />
+                <p>Scan on another device or tap below. Send the prefilled message to finish linking.</p>
+                <a className="btn" href={link.url} target="_blank" rel="noreferrer">Open WhatsApp</a>
+                <small>One-time code. Valid for 15 minutes.</small>
+              </>
+            ) : (
+              <Btn icon="Link2" disabled={busy} onClick={generate}>{busy ? "Generating…" : "Generate QR code"}</Btn>
+            )}
+          </>
+        )}
+        {error && <p className="parent-delivery" role="status">{error}</p>}
+      </div>
     </section>
   );
 }
@@ -342,7 +401,7 @@ export function NotificationAccess({ embedded = false }: { embedded?: boolean })
         {on && !chosen && <p role="alert"><small>Select at least one detected bank app below, otherwise nothing is read.</small></p>}
       </section>
       {!embedded && <DetectedApps />}
-      {!embedded && <WhatsAppBot />}
+      {!embedded && <WhatsAppLinkRow />}
       {!embedded && <BankChat />}
       {!embedded && (
         <section className="panel">

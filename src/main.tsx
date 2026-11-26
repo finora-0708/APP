@@ -12,7 +12,7 @@ import { C, useApp, I, Mark, Title, Badge, IconBtn, Btn, Empty, PurposePrompt } 
 import { emptyState, normalize, State, dateKey, uid, summary } from "./model";
 import { watchAuth, loadCloud, saveCloud, logout, localKey, AuthUser } from "./firebase";
 import { native } from "./native";
-import { BankSelect, BankSources, NotificationAccess, Reconcile, Goals, useSync, PermissionSetup } from "./bankui";
+import { BankSelect, BankSources, WhatsAppLinkScreen, NotificationAccess, Reconcile, Goals, useSync, PermissionSetup } from "./bankui";
 import { Home } from "./home";
 import { Analytics } from "./charts";
 import { Expense, Transactions, Detail } from "./transactions";
@@ -76,7 +76,8 @@ function Shell() {
     [...main, ...manage, ...account].find((x) => x[2] === loc.pathname)?.[0] ||
     {
       "/welcome": "Welcome",
-      "/onboarding": "Profile setup",
+      "/onboarding": "Quick setup",
+      "/profile/whatsapp": "WhatsApp linking",
       "/expense": "Add expense",
       "/review": "Review payments",
       "/notification-access": "Bank notification access",
@@ -197,6 +198,7 @@ function Shell() {
             <Route path="/integrations" element={<Integrations />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/profile/whatsapp" element={<WhatsAppLinkScreen />} />
             <Route
               path="/preferences"
               element={
