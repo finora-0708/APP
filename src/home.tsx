@@ -47,6 +47,16 @@ export function Home() {
           Add expense
         </Btn>
       </Title>
+      {!s.ready && (
+        <section className="panel">
+          <h2>Set up Finora?</h2>
+          <p>Choose your banks, transaction sources and spending preferences in a quick survey.</p>
+          <div className="formend">
+            <Btn kind="ghost" onClick={() => set((p) => ({ ...p, ready: true, permsDone: true }))}>Later</Btn>
+            <Btn onClick={() => go("/onboarding")}>Start quick setup</Btn>
+          </div>
+        </section>
+      )}
       <div className="cards">
         <section className="bankcard">
           <Contours />

@@ -12,7 +12,7 @@ import { C, useApp, I, Mark, Title, Badge, IconBtn, Btn, Empty, PurposePrompt } 
 import { emptyState, normalize, State, dateKey, uid, summary } from "./model";
 import { watchAuth, loadCloud, saveCloud, logout, localKey, AuthUser } from "./firebase";
 import { native } from "./native";
-import { BankSelect, NotificationAccess, Reconcile, Goals, useSync, PermissionSetup } from "./bankui";
+import { BankSelect, BankSources, NotificationAccess, Reconcile, Goals, useSync, PermissionSetup } from "./bankui";
 import { Home } from "./home";
 import { Analytics } from "./charts";
 import { Expense, Transactions, Detail } from "./transactions";
@@ -184,7 +184,7 @@ function Shell() {
               element={<Expense key={loc.pathname} />}
             />
             <Route path="/review" element={<Reconcile />} />
-            <Route path="/banks" element={<><Title title="Banks & notifications" sub="Choose your banks and manage notification tracking." /><BankSelect /><NotificationAccess embedded /><section className="panel"><Btn onClick={() => go("/notification-access")}>Open notification access</Btn></section></>} />
+            <Route path="/banks" element={<><Title title="Banks & notifications" sub="Choose how Finora imports your transactions." /><BankSelect /><BankSources /></>} />
             <Route path="/notification-access" element={<NotificationAccess />} />
             <Route path="/goals" element={<Goals />} />
             <Route path="/transactions" element={<Transactions />} />
@@ -420,18 +420,7 @@ function Session({ user }: { user: AuthUser | null | undefined }) {
         </div>
       ) : s ? (
         <>
-          {s.ready ? <Shell /> : (
-            <div className={"app entry " + (s.dark ? "dark" : "")}>
-              <main>
-                <Routes>
-                  <Route path="/onboarding" element={<Onboarding />} />
-                  <Route path="/privacy" element={<Legal k="privacy" />} />
-                  <Route path="/terms" element={<Legal k="terms" />} />
-                  <Route path="*" element={<Navigate to="/onboarding" replace />} />
-                </Routes>
-              </main>
-            </div>
-          )}
+          <Shell />
           <NativeSync />
         </>
       ) : (

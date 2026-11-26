@@ -131,12 +131,36 @@ export function DetectedApps() {
 
 // Guided flow for banks with an official WhatsApp banking number (e.g. SBI): the USER chats with the bank,
 // then forwards the statement reply to the FINORA bot. FINORA never messages the bank on your behalf.
+export function BankSources() {
+  return (
+    <>
+      <WhatsAppBot />
+      <BankChat />
+      <NotificationAccess embedded />
+    </>
+  );
+}
+
 export function BankChat() {
   const { s, toast } = useApp();
+  const [reminderTime, setReminderTime] = useState(() => localStorage.getItem("finora:statement-reminder:" + s.uid) || "");
   const [bot, setBot] = useState(""), [ask, setAsk] = useState(false), [busy, B] = useState(false);
   useEffect(() => { backend<{ botNumber: string }>("/wa/info", {}).then((r) => setBot(r.botNumber)).catch(() => {}); }, []);
   const banks = s.banks.map((b) => ({ b, def: BANKS.find((x) => x.id === b.id) })).filter((x) => x.def?.waNumber);
-  if (!banks.length) return null;
+  if (!banks.length) return <p>Select SBI above to set up WhatsApp mini-statement imports.</p>;
+  async function saveReminder(time: string) {
+    try {
+      if (!await native.scheduleStatementReminder(time)) {
+        toast("Daily reminders need notification permission in the Finora mobile app.");
+        return;
+      }
+      localStorage.setItem("finora:statement-reminder:" + s.uid, time);
+      setReminderTime(time);
+      toast(time ? "Daily statement reminder saved" : "Statement reminder turned off");
+    } catch {
+      toast("Could not update the statement reminder");
+    }
+  }
   async function sendParent() {
     B(true);
     try { await backend("/parent/send-now", {}); toast("Statement sent to your parent"); }
@@ -160,6 +184,19 @@ export function BankChat() {
           {bot && <a className="btn ghost" href={"https://wa.me/" + bot} target="_blank" rel="noreferrer">Open FINORA bot</a>}
         </div>
       ))}
+      {isNative() && (
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          void saveReminder(String(new FormData(e.currentTarget).get("time") || ""));
+        }}>
+          <Field label="Daily reminder to fetch a statement">
+            <input name="time" type="time" defaultValue={reminderTime} required />
+          </Field>
+          <p><small>Finora reminds you to open the bank chat and forward the statement. Bank notification access is optional.</small></p>
+          <Btn type="submit">Set reminder</Btn>{" "}
+          {reminderTime && <Btn kind="ghost" onClick={() => void saveReminder("")}>Turn off reminder</Btn>}
+        </form>
+      )}
       {s.parentPhone ? (
         !ask ? <Btn icon="MessageCircle" onClick={() => setAsk(true)}>Send statement to {s.parentName || "parent"}</Btn> : (
           <div className="listline">
@@ -174,6 +211,20 @@ export function BankChat() {
 
 export function WhatsAppBot() {
   const { toast } = useApp(), [info, setInfo] = useState<{ code: string; botNumber: string } | null>(null), [busy, B] = useState(false);
+  const [linked, setLinked] = useState<string | null>(null);
+  async function refresh() {
+    try {
+      const result = await backend<{ linkedNumber: string | null }>("/wa/info", {});
+      setLinked(result.linkedNumber);
+    } catch {
+      toast("Couldn't check WhatsApp link status. Try again in a minute.");
+    }
+  }
+  useEffect(() => {
+    backend<{ linkedNumber: string | null }>("/wa/info", {})
+      .then((result) => setLinked(result.linkedNumber))
+      .catch(() => {});
+  }, []);
   async function get() {
     B(true);
     try { setInfo(await backend<{ code: string; botNumber: string }>("/wa/link-code", {})); }
@@ -183,9 +234,11 @@ export function WhatsAppBot() {
   const num = info?.botNumber.replace(/\D/g, "") || "";
   return (
     <section className="panel">
-      <div className="sectionhead"><span className="tile mint"><I n="MessageCircle" /></span><Badge>Backup for missing notifications</Badge></div>
-      <h2>WhatsApp bot</h2>
+      <div className="sectionhead"><span className="tile mint"><I n="MessageCircle" /></span><Badge>{linked ? "Linked · " + linked : "WhatsApp imports"}</Badge></div>
+      <h2>Link your bank-registered WhatsApp</h2>
+      <p>Send the link code from the WhatsApp number registered with your bank. You can use WhatsApp imports on their own or with bank notifications.</p>
       <p><small>If a bank app does not send a notification, forward or paste the bank SMS text to the FINORA WhatsApp number. FINORA records the amount, debit/credit, reference and balance if present. OTP messages are ignored and the raw text is not stored. Send BALANCE, TODAY or MONTH to the bot for a quick summary.</small></p>
+      <Btn kind="ghost" onClick={() => void refresh()}>Check link status</Btn>{" "}
       {!info ? <Btn icon="Link2" disabled={busy} onClick={get}>{busy ? "Please wait…" : "Link my WhatsApp"}</Btn> : (
         <>
           <div className="listline"><span>Send this message from your WhatsApp</span><b>LINK {info.code}</b></div>

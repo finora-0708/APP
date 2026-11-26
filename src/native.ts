@@ -83,6 +83,22 @@ export const native = {
     await LocalNotifications.schedule({ notifications: [{ id: 9001, title: "FINORA TEST", body: "FINORA TEST – notification access check", schedule: { at: new Date(Date.now() + 1500) } }] });
     return true;
   },
+  async scheduleStatementReminder(time: string) {
+    if (!isNative()) return false;
+    if (time && (await LocalNotifications.checkPermissions()).display !== "granted" && (await native.askNotifyPermission()) !== "Granted") return false;
+    const id = 9201;
+    await LocalNotifications.cancel({ notifications: [{ id }] });
+    if (time) {
+      const [hour, minute] = time.split(":").map(Number);
+      await LocalNotifications.schedule({ notifications: [{
+        id,
+        title: "Import your bank statement",
+        body: "Open Finora to fetch and forward your WhatsApp mini statement.",
+        schedule: { on: { hour, minute }, allowWhileIdle: true },
+      }] });
+    }
+    return true;
+  },
   // Real reminders (work even when the app is closed)
   async scheduleReminders(rules: Rule[], bills: Rule[], enabled: boolean) {
     if (!isNative()) return;

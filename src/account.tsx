@@ -16,7 +16,7 @@ import { Confirm, Rules, Integrations } from "./planning";
 import { services } from "./services";
 import { googleSignIn, authMessage, logout, deleteCloud } from "./firebase";
 import { native } from "./native";
-import { BankSelect, NotificationAccess } from "./bankui";
+import { BankSelect, BankSources } from "./bankui";
 export function ProfileForm({
   next,
   budget = false,
@@ -220,7 +220,7 @@ export function Permissions() {
         </Btn>
       </div>
       {[
-        ["Bank notification access", "Optional. Granted separately in Android settings (see Banks & notifications)."],
+        ["Transaction sources", "Optional. Granted separately in Android settings (see Banks & notifications)."],
         ["Usage access", "An Android version may use app-open events for selected spending controls."],
         ["Background activity", "Device battery settings can delay reminders; allow FINORA to run in background."],
       ].map(([k, v]) => (
@@ -266,7 +266,7 @@ export function Onboarding() {
       ) : step === 1 ? (
         <BankSelect />
       ) : step === 2 ? (
-        <NotificationAccess embedded />
+        <BankSources />
       ) : step === 3 ? (
         <Integrations waOnly />
       ) : step === 4 ? (
@@ -289,7 +289,7 @@ export function Onboarding() {
           </Btn>
         )}
         {![0, 4].includes(step) && (
-          <Btn onClick={next}>{step === last ? "Open dashboard" : "Continue"}</Btn>
+          <Btn onClick={next}>{step === last ? "Finish setup" : "Continue"}</Btn>
         )}
       </div>
     </>
