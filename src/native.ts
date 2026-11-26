@@ -5,6 +5,7 @@ import { RawNotification } from "./parsers";
 import type { Rule } from "./model";
 
 type Native = {
+  showToast(o: { message: string }): Promise<void>;
   isNotificationAccessEnabled(): Promise<{ enabled: boolean }>;
   openNotificationAccessSettings(): Promise<void>;
   setAllowedPackages(o: { packages: string[] }): Promise<void>;
@@ -26,6 +27,15 @@ export const PAY_APPS = ["com.google.android.apps.nbu.paisa.user", "com.phonepe.
 const plugin = registerPlugin<Native>("FinoraNative");
 export const isNative = () => Capacitor.isNativePlatform();
 export const native = {
+  async showToast(message: string) {
+    if (Capacitor.getPlatform() !== "android" || message.length > 52) return false;
+    try {
+      await plugin.showToast({ message });
+      return true;
+    } catch {
+      return false;
+    }
+  },
   async accessEnabled() {
     if (!isNative()) return false;
     try { return (await plugin.isNotificationAccessEnabled()).enabled; } catch { return false; }

@@ -324,7 +324,8 @@ export function Integrations({ waOnly = false }: { waOnly?: boolean }) {
   const { s, set, f, toast, go } = useApp(),
     m = summary(s),
     ready = BACKEND_URL !== "",
-    [saving, setSaving] = useState(false);
+    [saving, setSaving] = useState(false),
+    [delivery, setDelivery] = useState("");
   async function save(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (saving) return;
@@ -340,16 +341,21 @@ export function Integrations({ waOnly = false }: { waOnly?: boolean }) {
     const reportOn = !!phone && d.get("on") === "on";
     const reportTime = v("time") || "21:00";
     setSaving(true);
+    setDelivery("");
     try {
-      const result = await backend<{ activation: "none" | "already_submitted" | "pending" | "submitted" | "failed" }>("/parent/save", { name, phone, reportOn, reportTime });
+      const result = await backend<{ activation: "none" | "already_submitted" | "pending" | "submitted" | "failed"; activationError?: string }>("/parent/save", { name, phone, reportOn, reportTime });
       if (!result.activation) throw new Error("Parent activation is unavailable");
       set((p) => ({ ...p, parentName: name, parentPhone: phone, reportOn, reportTime }));
-      if (result.activation === "submitted") toast("Parent saved. Welcome message submitted to WhatsApp.");
-      else if (result.activation === "pending") toast("Parent saved. WhatsApp submission is in progress.");
-      else if (result.activation === "failed") toast("Parent saved. WhatsApp message failed. Save again to retry.");
-      else toast("Parent Connect saved");
-    } catch {
-      toast("Couldn't save Parent Connect. Please try again.");
+      if (result.activation === "submitted" || result.activation === "already_submitted") {
+        setDelivery("Welcome message accepted by WhatsApp.");
+      } else if (result.activation === "pending") {
+        setDelivery("WhatsApp submission is in progress.");
+      } else if (result.activation === "failed") {
+        setDelivery(result.activationError || "The welcome message failed. Tap Save to try again.");
+      }
+      toast("Parent Connect saved");
+    } catch (error) {
+      setDelivery(error instanceof Error ? error.message : "Could not save Parent Connect. Try again.");
     } finally {
       setSaving(false);
     }
@@ -382,6 +388,7 @@ export function Integrations({ waOnly = false }: { waOnly?: boolean }) {
               <input name="on" type="checkbox" defaultChecked={s.reportOn} /> Send a daily report
             </label>
             {!ready && <small>Report delivery starts once the automation backend is connected. Your settings are saved to your account.</small>}
+            {delivery && <p className="parent-delivery" role="status">{delivery}</p>}
             <div className="formend">
               <Btn type="submit" disabled={saving}>{saving ? "Saving…" : "Save"}</Btn>
             </div>

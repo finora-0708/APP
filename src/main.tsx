@@ -142,8 +142,8 @@ function Shell() {
             >
               <I n="Menu" />
             </button>
-            <I n="House" size={16} />
-            <span>/</span> {label}
+            <I className="crumb-home" n="House" size={16} />
+            <span className="crumb-divider">/</span><span className="app-bar-title">{label}</span>
           </div>
           <div className="actions">
             <span className="live">
@@ -228,8 +228,8 @@ function Shell() {
       <nav className="bottomnav">
         {[...main, ["Profile", "User", "/profile"]].map(([v, i, p]) => (
           <NavLink key={p} end to={p}>
-            <I n={i} />
-            {p === "/" ? "Home" : v}
+            <span className="bottomnav-icon"><I n={i} /></span>
+            <span>{p === "/" ? "Home" : v}</span>
           </NavLink>
         ))}
       </nav>
@@ -281,11 +281,20 @@ function App() {
 function Session({ user }: { user: AuthUser | null | undefined }) {
   const [s, setS] = useState<State | null>(null),
     [issue, J] = useState(""),
-    [msg, T] = useState(""),
+    [msg, setMessage] = useState(""),
     [attempt, retry] = useState(0),
     [loadFailed, setLoadFailed] = useState(false),
     prev = useRef<State | null>(null),
     chain = useRef<Promise<unknown>>(Promise.resolve());
+  const toastSequence = useRef(0);
+  const T = (message: string) => {
+    const sequence = ++toastSequence.current;
+    setMessage("");
+    if (!message) return;
+    void native.showToast(message).then((shown) => {
+      if (!shown && sequence === toastSequence.current) setMessage(message);
+    });
+  };
   const set: React.Dispatch<React.SetStateAction<State>> = (fn) =>
     setS((p) => (p ? (typeof fn === "function" ? (fn as (x: State) => State)(p) : fn) : p));
   useEffect(() => {
@@ -348,7 +357,7 @@ function Session({ user }: { user: AuthUser | null | undefined }) {
   }, [s, user]);
   useEffect(() => {
     if (!msg) return;
-    const id = setTimeout(() => T(""), 4500);
+    const id = setTimeout(() => setMessage(""), 6000);
     return () => clearTimeout(id);
   }, [msg]);
   // 4) real scheduled reminders (work when the app is closed)
@@ -438,16 +447,10 @@ function Session({ user }: { user: AuthUser | null | undefined }) {
         </div>
       )}
       {(msg || issue) && (
-        <button
-          role="status"
-          className="toast"
-          onClick={() => {
-            T("");
-            J("");
-          }}
-        >
-          {msg || issue}　×
-        </button>
+        <div className="toast">
+          <span role="status">{msg || issue}</span>
+          <button type="button" aria-label="Dismiss message" onClick={() => msg ? T("") : J("")}><I n="X" size={18} /></button>
+        </div>
       )}
     </C.Provider>
   );

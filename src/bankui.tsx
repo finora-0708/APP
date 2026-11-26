@@ -193,7 +193,11 @@ export function BankChat() {
   }
   async function sendParent() {
     B(true);
-    try { await backend("/parent/send-now", {}); toast("Statement sent to your parent"); }
+    try {
+      const result = await backend<{ sent?: boolean }>("/parent/send-now", {});
+      if (!result.sent) throw new Error("Save a parent WhatsApp number first.");
+      toast("Report accepted by WhatsApp");
+    }
     catch (e: any) { toast("Could not send: " + (e?.message || "server error")); }
     B(false); setAsk(false);
   }

@@ -15,6 +15,7 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import android.text.TextUtils;
+import android.widget.Toast;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.HashSet;
@@ -41,6 +42,23 @@ public class FinoraNativePlugin extends Plugin {
 
     static void pingJs() {
         if (instance != null) instance.notifyListeners("bankNotification", new JSObject());
+    }
+
+    private Toast activeToast;
+
+    @PluginMethod
+    public void showToast(PluginCall call) {
+        String message = call.getString("message", "").trim();
+        if (message.isEmpty()) {
+            call.resolve();
+            return;
+        }
+        getActivity().runOnUiThread(() -> {
+            if (activeToast != null) activeToast.cancel();
+            activeToast = Toast.makeText(getContext().getApplicationContext(), message, Toast.LENGTH_SHORT);
+            activeToast.show();
+            call.resolve();
+        });
     }
 
     @PluginMethod

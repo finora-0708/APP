@@ -1403,3 +1403,73 @@ html.native aside {
 .statement-guide li + li { margin-top: 6px; }
 .statement-import { margin-block: 16px; }
 .statement-import textarea { width: 100%; resize: vertical; }
+
+
+/* Shared Android screen surfaces and touch feedback. */
+html.native .app {
+  font-family: Roboto, "Noto Sans", system-ui, sans-serif;
+}
+html.native .panel { border-radius: 22px; }
+html.native .btn { min-height: 48px; border-radius: 24px; }
+html.native :is(input:not([type="checkbox"], [type="radio"]), select, textarea) {
+  min-height: 48px;
+  border-radius: 12px;
+  font-size: 16px;
+}
+html.native .dialog { border-radius: 28px; }
+html.native .btn:active, html.native .iconbtn:active, html.native .bottomnav a:active {
+  opacity: .74;
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  width: max-content;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 4px 6px 4px 16px;
+  border-radius: 12px;
+}
+.toast span { overflow-wrap: anywhere; }
+.toast button {
+  flex: 0 0 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+}
+.parent-delivery {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--soft);
+  color: var(--fg);
+}
+@media (max-width: 730px), (max-width: 950px) and (max-height: 500px) {
+  html.native .topbar { min-height: calc(60px + var(--inset-top)); }
+  html.native .crumb-home, html.native .crumb-divider { display: none; }
+  html.native .app-bar-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 17px;
+    font-weight: 650;
+  }
+  html.native .topbar .actions { flex-shrink: 0; gap: 2px; }
+  html.native .topbar :is(.iconbtn, .avatar, .hamb) { min-height: 44px; min-width: 44px; }
+  html.native .bottomnav a { min-height: 64px; gap: 3px; }
+  html.native .bottomnav .active { background: transparent; }
+  html.native .bottomnav-icon {
+    display: grid;
+    place-items: center;
+    width: 52px;
+    height: 30px;
+    border-radius: 24px;
+  }
+  html.native .bottomnav a.active .bottomnav-icon { background: var(--track); }
+  html.native main { padding-bottom: calc(90px + var(--inset-bottom)); }
+  html.native .toast { bottom: calc(76px + var(--inset-bottom)); }
+}
